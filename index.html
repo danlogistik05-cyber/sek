@@ -14,8 +14,26 @@
     #scanBtn { background:#007bff; color:#fff; }
     #fulfillBtn { background:#28a745; color:#fff; display:none; }
     .result { margin-top:1rem; padding:1rem; border-radius:8px; background:#f3f3f3; white-space:pre-wrap; }
-    #scanner { width: 100%; max-width: 400px; height: 250px; margin:1rem auto; border-radius:8px; background:black; }
-    #scanner video { width:100% !important; height:100% !important; object-fit:cover; }
+
+    /* 🔒 Scanner Box */
+    #scanner {
+      width: 100%;
+      max-width: 400px;
+      height: 250px;
+      margin: 1rem auto;
+      border-radius: 8px;
+      background: black;
+      overflow: hidden;
+      position: relative;
+    }
+    #scanner video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover; /* fill box only */
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
   </style>
 </head>
 <body>
@@ -51,10 +69,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.30/dist/dbr.js"></script>
   <script>
-    const workerUrl = "https://sg.jatransport001.workers.dev/"; // 🔑 Your Worker URL
+    const workerUrl = "https://sg.jatransport001.workers.dev/"; // 🔑 Replace with your Worker URL
 
     let currentUser = null;
 
+    // --- LOGIN ---
     const loginBtn = document.getElementById("loginBtn");
     loginBtn.addEventListener("click", async () => {
       const username = document.getElementById("username").value.trim().toLowerCase();
@@ -149,7 +168,7 @@
     // --- Barcode Scanner Init ---
     (async () => {
       try {
-        Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA0NDM3MTU3LU1UQTBORE0zTVRVM0xYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20iLCJvcmdhbml6YXRpb25JRCI6IjEwNDQzNzE1NyIsInN0YW5kYnlTZXJ2ZXJVUkwiOiJodHRwczovL3NkbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsImNoZWNrQ29kZSI6ODc2MzE4NDAxfQ=="; // Replace with your trial key
+        Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA0NDM3MTU3LU1UQTBORE0zTVRVM0xYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20iLCJvcmdhbml6YXRpb25JRCI6IjEwNDQzNzE1NyIsInN0YW5kYnlTZXJ2ZXJVUkwiOiJodHRwczovL3NkbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsImNoZWNrQ29kZSI6ODc2MzE4NDAxfQ=="; // 🔑 Replace with your key
         const scanner = await Dynamsoft.DBR.BarcodeScanner.createInstance();
         await scanner.setUIElement(document.getElementById("scanner"));
 
