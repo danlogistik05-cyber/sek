@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shopify Order Checker + Staff Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background:#f9f9f9; padding:1rem; }
+    .card { background:#fff; padding:1rem; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.1); max-width:600px; margin:0 auto; }
+    .hidden { display: none; }
+    input { width:100%; padding:.5rem; margin-top:.5rem; border-radius:6px; border:1px solid #ccc; }
+    button { margin-top:.5rem; padding:.5rem 1rem; border:none; border-radius:6px; cursor:pointer; }
+    #loginBtn { background:#007bff; color:#fff; }
+    #scanBtn { background:#007bff; color:#fff; }
+    #fulfillBtn { background:#28a745; color:#fff; display:none; }
+    .result { margin-top:1rem; padding:1rem; border-radius:8px; background:#f3f3f3; white-space:pre-wrap; }
+    #scanner { width: 100%; max-width: 400px; height: 250px; margin:1rem auto; border-radius:8px; background:black; }
+    #scanner video { width:100% !important; height:100% !important; object-fit:cover; }
+  </style>
+</head>
+<body>
+  <!-- LOGIN SCREEN -->
+  <div id="loginCard" class="card">
+    <h2>🔑 Login</h2>
+    <p>Log ind for at fortsætte</p>
+    <input id="username" type="text" placeholder="Brugernavn">
+    <input id="password" type="password" placeholder="Adgangskode">
+    <button id="loginBtn">Login</button>
+    <p id="loginError" style="color:red; display:none;">❌ Forkert login</p>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="appCard" class="card hidden">
+    <h2>Ordre Klargøring</h2>
+    <p id="welcome"></p>
+
+    <!-- Scanner -->
+    <div id="scanner" class="dce-video-container"></div>
+    <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+    <!-- Manual input -->
+    <input id="orderInput" type="text" placeholder="#1001">
+
+    <!-- Buttons -->
+    <button id="scanBtn">Søg efter Ordre</button>
+    <button id="fulfillBtn">Klargør</button>
+
+    <!-- Results -->
+    <div id="result" class="result hidden"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.30/dist/dbr.js"></script>
+  <script>
+    const workerUrl = "https://sg.jatransport001.workers.dev/"; // 🔑 Your Worker URL
+
+    let currentUser = null;
+
+    const loginBtn = document.getElementById("loginBtn");
+    loginBtn.addEventListener("click", async () => {
+      const username = document.getElementById("username").value.trim().toLowerCase();
+      const password = document.getElementById("password").value.trim();
+
+      const r = await fetch(workerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "login", username, password })
+      });
+      const data = await r.json();
+
+      if (data.success) {
+        currentUser = data.user;
+        document.getElementById("loginCard").classList.add("hidden");
+        document.getElementById("appCard").classList.remove("hidden");
+        document.getElementById("welcome").textContent = `✅ Logget ind som: ${currentUser}`;
+      } else {
+        document.getElementById("loginError").style.display = "block";
+      }
+    });
+
+    const input = document.getElementById("orderInput");
+    const btnCheck = document.getElementById("scanBtn");
+    const btnFulfill = document.getElementById("fulfillBtn");
+    const result = document.getElementById("result");
+    const beep = document.getElementById("beep");
+
+    // --- Check Order ---
+    async function checkOrder(orderNumber) {
+      if (!orderNumber) return;
+      result.classList.remove("hidden");
+      result.textContent = "Søger efter ordre...";
+      btnFulfill.style.display = "none";
+
+      try {
+        const r = await fetch(workerUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "check", orderNumber })
+        });
+        const data = await r.json();
+
+        if (!data.exists) {
+          result.textContent = "❌ Ingen ordre fundet.";
+          return;
+        }
+
+        const o = data.order;
+        let html = `Ordre ${o.name}\n\nProdukter:\n`;
+        o.lineItems.forEach(li => { html += `- ${li.title} x${li.quantity}\n`; });
+
+        result.textContent = html;
+        btnFulfill.style.display = "inline-block";
+
+      } catch (err) {
+        result.textContent = "⚠️ Fejl: " + err.message;
+      }
+    }
+
+    // --- Fulfill Order (send user) ---
+    async function fulfillOrder(orderNumber) {
+      result.classList.remove("hidden");
+      result.textContent = "Prøver at klargøre ordren...";
+
+      try {
+        const r = await fetch(workerUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "fulfillByName",
+            orderNumber,
+            fulfilledBy: currentUser
+          })
+        });
+        const data = await r.json();
+
+        if (data.success) {
+          result.textContent = `✅ Ordren er blevet klargjort af ${currentUser}`;
+        } else {
+          result.textContent = `❌ Klargøring fejlede\nError: ${data.error || "Ukendt"}`;
+        }
+      } catch (err) {
+        result.textContent = "⚠️ Error: " + err.message;
+      }
+    }
+
+    btnCheck.addEventListener("click", () => checkOrder(input.value.trim()));
+    btnFulfill.addEventListener("click", () => fulfillOrder(input.value.trim()));
+    input.addEventListener("keydown", e => { if (e.key === "Enter") checkOrder(input.value.trim()); });
+
+    // --- Barcode Scanner Init ---
+    (async () => {
+      try {
+        Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA0NDM3MTU3LU1UQTBORE0zTVRVM0xYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20iLCJvcmdhbml6YXRpb25JRCI6IjEwNDQzNzE1NyIsInN0YW5kYnlTZXJ2ZXJVUkwiOiJodHRwczovL3NkbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsImNoZWNrQ29kZSI6ODc2MzE4NDAxfQ=="; // Replace with your trial key
+        const scanner = await Dynamsoft.DBR.BarcodeScanner.createInstance();
+        await scanner.setUIElement(document.getElementById("scanner"));
+
+        let settings = await scanner.getRuntimeSettings();
+        settings.barcodeFormatIds = Dynamsoft.DBR.EnumBarcodeFormat.BF_CODE_128;
+        await scanner.updateRuntimeSettings(settings);
+
+        scanner.onUnduplicatedRead = (txt) => {
+          input.value = txt;
+          beep.play();
+          checkOrder(txt);
+        };
+
+        await scanner.show();
+      } catch (err) {
+        console.error(err);
+        result.classList.remove("hidden");
+        result.textContent = "❌ Scanner fejl: " + err.message;
+      }
+    })();
+  </script>
+</body>
+</html>
